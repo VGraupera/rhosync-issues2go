@@ -44,15 +44,21 @@ class LighthouseProjects < SourceAdapter
     response = Net::HTTP.start(uri.host,uri.port) do |http|
       http.request(req)
     end
-    xml_data = XmlSimple.xml_in(response.body); 
-    @result = xml_data["project"]
+    if response.class == Net::HTTPUnauthorized
+      log "LighthouseProjects sync, ERROR Net::HTTPUnauthorized"
+      @result = nil
+    else
+      xml_data = XmlSimple.xml_in(response.body); 
+      @result = xml_data["project"]
+    end
   end
 
   def sync
     if @result
       log "LighthouseProjects sync, with #{@result.length} results"
     else
-      log "LighthouseProjects sync, ERROR @result nil" and return
+      log "LighthouseProjects sync, ERROR @result nil"
+      return
     end
     
     @result.each do |project|

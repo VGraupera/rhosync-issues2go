@@ -23,10 +23,14 @@ class LighthouseUsers < SourceAdapter
     # iterate over all projects/<id>/memberships.xml to get user ids
     # we use the IDs of the projects already synced in LighthouseProjects adapter
     projectSource = Source.find_by_adapter("LighthouseProjects")
-    projects = ObjectValue.find(:all, :conditions => ["source_id = ? and update_type = 'query' and attrib = 'name'", 
-      projectSource.id])
+    
+    projects = ObjectValue.find(:all, :conditions => {
+      :source_id => projectSource.id, :update_type => 'query',
+      :attrib => 'name', :user_id=>@source.current_user.id})
       
-    projects.each do |project|  
+    log "projects count=#{projects.length}"
+      
+    projects.each do |project|
       uri = URI.parse(base_url)
       url = "/projects/#{project.object}/memberships.xml"
       req = Net::HTTP::Get.new(url, 'Accept' => 'application/xml')      
@@ -80,7 +84,8 @@ class LighthouseUsers < SourceAdapter
     if @result
       log "LighthouseUsers sync, with #{@result.length} results"
     else
-      log "LighthouseUsers sync, ERROR @result nil" and return
+      log "LighthouseUsers sync, ERROR @result nil"
+      return
     end
     
     @result.each do |user|

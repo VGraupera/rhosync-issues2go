@@ -28,9 +28,10 @@ class LighthouseMilestones < SourceAdapter
     # iterate over all projects/<id>/Memberships.xml to get user ids
     # we use the IDs of the projects already synced in LighthouseProjects adapter
     projectSource = Source.find_by_adapter("LighthouseProjects")
-    projects = ObjectValue.find(:all, :conditions => ["source_id = ? and update_type = 'query' and attrib = 'name'", 
-      projectSource.id])
-      
+    projects = ObjectValue.find(:all, :conditions => {
+      :source_id => projectSource.id, :update_type => 'query',
+      :attrib => 'name', :user_id=>@source.current_user.id})
+        
     @result = []
       
     projects.each do |project|  
@@ -58,7 +59,8 @@ class LighthouseMilestones < SourceAdapter
     if @result
       log "LighthouseMilestones sync, with #{@result.length} results"
     else
-      log "LighthouseMilestones sync, ERROR @result nil" and return
+      log "LighthouseMilestones sync, ERROR @result nil"
+      return
     end
         
     @result.each do |milestone|      

@@ -13,9 +13,7 @@ class LighthouseSettings < SourceAdapter
     @result = [ {"lighthouse_id" => @source.credential.login.to_s } ]
   end
   
-  def sync
-    log "LighthouseSettings sync, with #{@result.length} results"
-    
+  def sync  
     @result[0].each do |key, value|
       add_triple(@source.id, "doesnotmatter", key, value.to_s, @source.current_user.id)
     end
