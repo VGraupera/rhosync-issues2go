@@ -59,15 +59,16 @@ class LighthouseTicketVersions < SourceAdapter
       # here we just want to know who made the change and when, other fields we dont save to DB
       %w(updated-at user-id).each do |key|
         value = version[key] ? version[key][0] : ""
-        add_triple(@source.id, id, key.gsub('-','_'), value, @source.current_user.id)
+        add_triple(@source.id, id, key.gsub('-','_'), value, @source.current_user.id) rescue nil
         # convert "-" to "_" because "-" is not valid in ruby variable names   
       end    
       
       # process the "diffable-attributes"
       change_msg = calculate_change_history(version, YAML::load(version['diffable-attributes'][0]['content']))
             
-      add_triple(@source.id, id, "changes", change_msg, @source.current_user.id)
-      add_triple(@source.id, id, "ticket_id", "#{version['project-id'][0]['content']}-#{version['number'][0]['content']}", @source.current_user.id)    
+      add_triple(@source.id, id, "changes", change_msg, @source.current_user.id) rescue nil
+      add_triple(@source.id, id, "ticket_id", "#{version['project-id'][0]['content']}-#{version['number'][0]['content']}", 
+        @source.current_user.id) rescue nil
     end
   end
   

@@ -20,53 +20,20 @@ class LighthouseUsers < SourceAdapter
     
     user_ids = []
     
-    # iterate over all projects/<id>/memberships.xml to get user ids
-    # we use the IDs of the projects already synced in LighthouseProjects adapter
-    projectSource = Source.find_by_adapter("LighthouseProjects")
+    # iterate over all tickets and make sure we have user info for each
+    tickets_src = Source.find_by_adapter("LighthouseTickets")
     
-    projects = ObjectValue.find(:all, :conditions => {
-      :source_id => projectSource.id, :update_type => 'query',
-      :attrib => 'name', :user_id=>@source.current_user.id})
+    unique_users =  ObjectValue.find(:all, :select => "distinct(value)",
+    :conditions => ["source_id = ? and update_type = 'query' and user_id = ? and 
+      (attrib = 'user_id' OR attrib = 'assigned_user_id' OR attrib = 'creator_id')",
+      tickets_src.id, @source.current_user.id])
       
-    log "projects count=#{projects.length}"
+    log "unique_users count=#{unique_users.length}"
       
-    projects.each do |project|
-      uri = URI.parse(base_url)
-      url = "/projects/#{project.object}/memberships.xml"
-      req = Net::HTTP::Get.new(url, 'Accept' => 'application/xml')      
-      req.basic_auth @source.credential.token, "x"
-
-      response = Net::HTTP.start(uri.host,uri.port) do |http|
-        http.set_debug_output $stderr
-        http.request(req)
-      end
-      xml_data = XmlSimple.xml_in(response.body); 
-
-      # <memberships type="array">
-      #   <membership>
-      #     <id type="integer">8666</id>
-      #     <user-id type="integer">9435</user-id>
-      #     <account>http://vdggroup.lighthouseapp.com</account>
-      #   </membership>
-      # </memberships>
-      #
-            
-      # if there are no memberships for a project this will be nil
-      if xml_data["membership"]
-        xml_data["membership"].each do |membership|
-          user_ids << membership["user-id"][0]["content"]
-        end
-      end
-    end
-    
-    user_ids.uniq! 
-    
     @result = []
-    
-    #then for each one - GET /users/#{ID}.xml
-    user_ids.each do |user_id|
+    unique_users.each do |user|
       uri = URI.parse(base_url)
-      req = Net::HTTP::Get.new("/users/#{user_id}.xml", 'Accept' => 'application/xml')
+      req = Net::HTTP::Get.new("/users/#{user.value}.xml", 'Accept' => 'application/xml')
       req.basic_auth @source.credential.token, "x"
       response = Net::HTTP.start(uri.host,uri.port) do |http|
         http.set_debug_output $stderr
@@ -74,10 +41,11 @@ class LighthouseUsers < SourceAdapter
       end
       xml_data = XmlSimple.xml_in(response.body);
       
-      if xml_data
+      if xml_data && xml_data.class != String
         @result << xml_data
       end
     end
+    
   end
 
   def sync
