@@ -48,7 +48,7 @@ class LighthouseTicketVersions < SourceAdapter
       generic_results = []
       @result.each do |version|
         result = {}
-        result["id"] = = unique_id(version)
+        result["id"] = unique_id(version)
       
         # here we just want to know who made the change and when, other fields we dont save to DB
         %w(updated-at user-id).each do |key|
