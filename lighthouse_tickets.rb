@@ -26,9 +26,13 @@
 #   <user-id type="integer">9435</user-id>
 # </ticket>
 
-class LighthouseTickets < SourceAdapter
+class LighthouseTickets < LighthouseAdapter
   
-  include RestAPIHelpers
+   def initialize(source=nil,credential=nil)
+     @fieldset=%w(assigned-user-id body closed created-at creator-id milestone-id number priority state tag title updated-at project-id user-id)
+
+     super(source,credential)
+   end
   
   # login and logoff are left intentionally unimplemented (i.e. we use baseclass implementation) in REST
 
@@ -68,28 +72,6 @@ class LighthouseTickets < SourceAdapter
       end
       
       
-    end
-  end
-
-  def sync
-    if @result
-      log "LighthouseTickets sync, with #{@result.length} results"
-    else
-      log "LighthouseTickets sync, ERROR @result nil"
-      return
-    end
-    
-    @result.each do |ticket|
-      # construct unique ID for ticket, tickets are identified by project-id/number in lighthouse
-      # and number itself is not unique
-      id = "#{ticket['project-id'][0]['content']}-#{ticket['number'][0]['content']}"
-      
-      # iterate over all possible values, if the value is not found we just pass "" in to rhosync
-      %w(assigned-user-id body closed created-at creator-id milestone-id number priority state tag title updated-at project-id user-id).each do |key|
-        value = ticket[key] ? ticket[key][0] : ""
-        add_triple(@source.id, id, key.gsub('-','_'), value, @source.current_user.id)
-        # convert "-" to "_" because "-" is not valid in ruby variable names   
-      end    
     end
   end
 
@@ -172,6 +154,10 @@ class LighthouseTickets < SourceAdapter
   end
   
   protected
+  
+  def unique_id(item)
+    "#{item['project-id'][0]['content']}-#{item['number'][0]['content']}"
+  end
   
  # use this to fill params from the DB to make a complete request
   def complete_missing_params

@@ -10,11 +10,14 @@
 #   <website></website>
 # </user>
 
+class LighthouseUsers < LighthouseAdapter
 
-class LighthouseUsers < SourceAdapter
+  def initialize(source=nil,credential=nil)
+    @fieldset=%w(job name website)
+    
+    super(source,credential)
+  end
   
-  include RestAPIHelpers
-
   def query
     log "LighthouseUsers query"
     
@@ -32,40 +35,15 @@ class LighthouseUsers < SourceAdapter
       
     @result = []
     unique_users.each do |user|
-      uri = URI.parse(base_url)
-      req = Net::HTTP::Get.new("/users/#{user.value}.xml", 'Accept' => 'application/xml')
-      req.basic_auth @source.credential.token, "x"
-      response = Net::HTTP.start(uri.host,uri.port) do |http|
-        http.set_debug_output $stderr
-        http.request(req)
-      end
-      xml_data = XmlSimple.xml_in(response.body);
-      
+      # splice in the authentication
+      request_url = URI.join("#{base_url[0..6]}#{@source.credential.token}:x@#{base_url[7..-1]}", "users/#{user.value}.xml").to_s
+      response = RestClient.get request_url
+      xml_data = XmlSimple.xml_in(response.to_s);
       if xml_data && xml_data.class != String
         @result << xml_data
       end
     end
     
-  end
-
-  def sync
-    if @result
-      log "LighthouseUsers sync, with #{@result.length} results"
-    else
-      log "LighthouseUsers sync, ERROR @result nil"
-      return
-    end
-    
-    @result.each do |user|
-      id = user["id"][0]["content"]
-      
-      # iterate over all possible values, if the value is not found we just pass "" in to rhosync
-      %w(job name website).each do |key|
-        value = user[key] ? user[key][0] : ""
-        add_triple(@source.id, id, key.gsub('-','_'), value, @source.current_user.id)
-        # convert "-" to "_" because "-" is not valid in ruby variable names   
-      end
-    end
   end
   
   # not planning to create, update or delete users on device

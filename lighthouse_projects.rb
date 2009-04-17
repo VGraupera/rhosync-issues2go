@@ -30,49 +30,26 @@
 #   <closed-states-list>resolved,hold,invalid</closed-states-list>
 # </project>
 
-class LighthouseProjects < SourceAdapter
+
+class LighthouseProjects < LighthouseAdapter
   
-  include RestAPIHelpers
+  def initialize(source=nil,credential=nil)
+    @fieldset=%w(created-at default-assigned-user-id default-milestone-id description name public updated-at open-states-list closed-states-list)
+    
+    super(source,credential)
+  end
 
   def query
     log "LighthouseProjects query"
     
-    uri = URI.parse(base_url)
-    req = Net::HTTP::Get.new("/projects.xml", 'Accept' => 'application/xml')
-    req.basic_auth @source.credential.token, "x"
-    
-    response = Net::HTTP.start(uri.host,uri.port) do |http|
-      http.request(req)
-    end
-    if response.class == Net::HTTPUnauthorized
-      log "LighthouseProjects sync, ERROR Net::HTTPUnauthorized"
-      @result = nil
-    else
-      xml_data = XmlSimple.xml_in(response.body); 
-      @result = xml_data["project"]
-    end
+    # splice in the authentication
+    request_url = URI.join("#{base_url[0..6]}#{@source.credential.token}:x@#{base_url[7..-1]}", 
+      "/projects.xml").to_s
+    response = RestClient.get request_url
+    xml_data = XmlSimple.xml_in(response.to_s); 
+    @result = xml_data["project"] rescue nil
   end
 
-  def sync
-    if @result
-      log "LighthouseProjects sync, with #{@result.length} results"
-    else
-      log "LighthouseProjects sync, ERROR @result nil"
-      return
-    end
-    
-    @result.each do |project|
-      id = project["id"][0]["content"]
-      
-      # iterate over all possible values, if the value is not found we just pass "" in to rhosync
-      %w(created-at default-assigned-user-id default-milestone-id description name public updated-at open-states-list closed-states-list).each do |key|
-        value = project[key] ? project[key][0] : ""
-        add_triple(@source.id, id, key.gsub('-','_'), value, @source.current_user.id)
-        # convert "-" to "_" because "-" is not valid in ruby variable names   
-      end
-    end
-  end
-  
   #
   # not planning to create, update or delete projects on device
   #

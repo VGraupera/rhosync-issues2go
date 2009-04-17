@@ -40,35 +40,34 @@ class LighthouseTicketVersions < SourceAdapter
       end
     end
   end
-
+  
   def sync
     if @result
       log "LighthouseTicketVersions sync, with #{@result.length} results"
+    
+      generic_results = []
+      @result.each do |version|
+        result = {}
+        result["id"] = = unique_id(version)
+      
+        # here we just want to know who made the change and when, other fields we dont save to DB
+        %w(updated-at user-id).each do |key|
+          value = version[key].empty? ? nil : version[key][0]
+          value = nil unless value.class == String
+          result[key.gsub('-','_')] = value
+        end    
+      
+        # process the "diffable-attributes"
+        change_msg = calculate_change_history(version, YAML::load(version['diffable-attributes'][0]['content']))
+            
+        result["changes"]=change_msg
+        result["ticket_id"]="#{version['project-id'][0]['content']}-#{version['number'][0]['content']}"
+        generic_results << result
+      end
+      @result = generic_results
+      super
     else
       log "LighthouseTicketVersions sync, ERROR @result nil"
-      return
-    end
-    
-    @result.each do |version|
-      # construct unique ID for ticket versions, tickets are identified by project-id/number in lighthouse
-      # and number itself is not unique, here we also append the timestamp since there willl always be more 
-      # than 1 version for same project_id-number
-      id = "#{version['project-id'][0]['content']}-#{version['number'][0]['content']}-#{version['updated-at'][0]['content']}"
-      # puts "LighthouseTicketVersions id=#{id}"
-      
-      # here we just want to know who made the change and when, other fields we dont save to DB
-      %w(updated-at user-id).each do |key|
-        value = version[key] ? version[key][0] : ""
-        add_triple(@source.id, id, key.gsub('-','_'), value, @source.current_user.id) rescue nil
-        # convert "-" to "_" because "-" is not valid in ruby variable names   
-      end    
-      
-      # process the "diffable-attributes"
-      change_msg = calculate_change_history(version, YAML::load(version['diffable-attributes'][0]['content']))
-            
-      add_triple(@source.id, id, "changes", change_msg, @source.current_user.id) rescue nil
-      add_triple(@source.id, id, "ticket_id", "#{version['project-id'][0]['content']}-#{version['number'][0]['content']}", 
-        @source.current_user.id) rescue nil
     end
   end
   
@@ -156,4 +155,11 @@ class LighthouseTicketVersions < SourceAdapter
     change_msg
   end
       
+  protected
+  # construct unique ID for ticket versions, tickets are identified by project-id/number in lighthouse
+  # and number itself is not unique, here we also append the timestamp since there willl always be more 
+  # than 1 version for same project_id-number
+  def unique_id(item)
+    "#{item['project-id'][0]['content']}-#{item['number'][0]['content']}-#{item['updated-at'][0]['content']}"
+  end
 end

@@ -17,11 +17,14 @@
 # </milestone>
 # 
 
-
-class LighthouseMilestones < SourceAdapter
+class LighthouseMilestones < LighthouseAdapter
   
-  include RestAPIHelpers
-
+  def initialize(source=nil,credential=nil)
+    @fieldset=%w(project-id title due-on)
+    
+    super(source,credential)
+  end
+  
   def query
     log "LighthouseMilestones query"
         
@@ -34,18 +37,13 @@ class LighthouseMilestones < SourceAdapter
         
     @result = []
       
-    projects.each do |project|  
-      uri = URI.parse(base_url)
-      url = "/projects/#{project.object}/milestones.xml"
-      req = Net::HTTP::Get.new(url, 'Accept' => 'application/xml')      
-      req.basic_auth @source.credential.token, "x"
-
-      response = Net::HTTP.start(uri.host,uri.port) do |http|
-        http.set_debug_output $stderr
-        http.request(req)
-      end
-      xml_data = XmlSimple.xml_in(response.body); 
-
+    projects.each do |project|
+      # splice in the authentication
+      request_url = URI.join("#{base_url[0..6]}#{@source.credential.token}:x@#{base_url[7..-1]}", 
+        "/projects/#{project.object}/milestones.xml").to_s
+      response = RestClient.get request_url
+      
+      xml_data = XmlSimple.xml_in(response.to_s); 
       if xml_data["milestone"]
         xml_data["milestone"].each do |milestone|
           @result << milestone
@@ -53,26 +51,6 @@ class LighthouseMilestones < SourceAdapter
       end
     end
 
-  end
-
-  def sync
-    if @result
-      log "LighthouseMilestones sync, with #{@result.length} results"
-    else
-      log "LighthouseMilestones sync, ERROR @result nil"
-      return
-    end
-        
-    @result.each do |milestone|      
-      id = milestone["id"][0]["content"]
-      
-      # iterate over all possible values, if the value is not found we just pass "" in to rhosync
-      %w(project-id title due-on).each do |key|
-        value = milestone[key] ? milestone[key][0] : ""
-        add_triple(@source.id, id, key.gsub('-','_'), value, @source.current_user.id)
-        # convert "-" to "_" because "-" is not valid in ruby variable names   
-      end
-    end
   end
   
   # not planning to create, update or delete milestones on device
